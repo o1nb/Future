@@ -127,16 +127,27 @@ makefolder("Future/configs")
 makefolder("Future/configs/"..tostring(shared.FuturePlaceId or game.PlaceId))
 makefolder("Future/configs/!SelectedConfigs/")
 
-local function requesturl(url, bypass) 
-    if betterisfile(url) then 
-        return readfile(url)
+local function requesturl(url, bypass)
+    local cleanurl = tostring(url):gsub("^Future/", "")
+    local localpaths = {
+        tostring(url),
+        "Future/" .. cleanurl,
+        cleanurl
+    }
+
+    for _, path in ipairs(localpaths) do
+        if betterisfile and betterisfile(path) then
+            return readfile(path)
+        elseif isfile and isfile(path) then
+            return readfile(path)
+        end
     end
 
     local repourl = bypass and "https://raw.githubusercontent.com/o1nb/" or "https://raw.githubusercontent.com/o1nb/Future/main/"
-    local fullurl = repourl..url
+    local fullurl = repourl .. cleanurl
 
     if not requestfunc then
-        error("No request function found for this executor")
+        error("Missing local file and no request function: " .. table.concat(localpaths, ", "))
     end
 
     local suc, req = pcall(function()
@@ -147,22 +158,21 @@ local function requesturl(url, bypass)
     end)
 
     if not suc or not req then
-        error("Request failed: "..tostring(req))
+        error("Request failed: " .. tostring(req))
     end
 
     local status = req.StatusCode or req.Status or req.status_code or req.status
-    if status == 404 then
-        error("404 Not Found: "..fullurl)
+    if status and status ~= 200 then
+        error(tostring(status) .. " while requesting " .. fullurl)
     end
 
     local body = req.Body or req.body
     if not body then
-        error("Request returned no body: "..fullurl)
+        error("Request returned no body: " .. fullurl)
     end
 
     return body
-end 
-
+end
 local function getasset(path)
 	--[[if not betterisfile(path) then
 		local req = requestfunc({
@@ -1272,7 +1282,7 @@ GuiLibrary["LoadOnlyGuiConfig"] = function()
                 GuiLibrary.Font = Enum.Font[config.Font]
                 for i,v in next, GuiLibrary.ScreenGui:GetDescendants() do 
                     if pcall(function() return v.Font end) then 
-                        v.Font = config.Font
+                        v.Font = GuiLibrary.Font
                     end
                 end
                 GuiLibrary["Signals"]["HUDUpdate"]:Fire()

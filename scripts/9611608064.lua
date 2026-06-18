@@ -17,20 +17,52 @@ local spawn = function(func)
 end
 local br = {}
 
-local function requesturl(url, bypass) 
-    if isfile(url) and shared.FutureDeveloper then 
-        return readfile(url)
-    end
-    local repourl = bypass and "https://raw.githubusercontent.com/o1nb/" or "https://raw.githubusercontent.com/o1nb/Future/main/"
-    local url = url:gsub("Future/", "")
-    local req = requestfunc({
-        Url = repourl..url,
-        Method = "GET"
-    })
-    if req.StatusCode == 404 then error("404 Not Found") end
-    return req.Body
-end 
+local function requesturl(url, bypass)
+    local cleanurl = tostring(url):gsub("^Future/", "")
+    local localpaths = {
+        tostring(url),
+        "Future/" .. cleanurl,
+        cleanurl
+    }
 
+    for _, path in ipairs(localpaths) do
+        if betterisfile and betterisfile(path) then
+            return readfile(path)
+        elseif isfile and isfile(path) then
+            return readfile(path)
+        end
+    end
+
+    local repourl = bypass and "https://raw.githubusercontent.com/o1nb/" or "https://raw.githubusercontent.com/o1nb/Future/main/"
+    local fullurl = repourl .. cleanurl
+
+    if not requestfunc then
+        error("Missing local file and no request function: " .. table.concat(localpaths, ", "))
+    end
+
+    local suc, req = pcall(function()
+        return requestfunc({
+            Url = fullurl,
+            Method = "GET"
+        })
+    end)
+
+    if not suc or not req then
+        error("Request failed: " .. tostring(req))
+    end
+
+    local status = req.StatusCode or req.Status or req.status_code or req.status
+    if status and status ~= 200 then
+        error(tostring(status) .. " while requesting " .. fullurl)
+    end
+
+    local body = req.Body or req.body
+    if not body then
+        error("Request returned no body: " .. fullurl)
+    end
+
+    return body
+end
 local function getasset(path)
 	if not isfile(path) then
 		local req = requestfunc({

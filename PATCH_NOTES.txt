@@ -1,0 +1,9 @@
+Patched by ChatGPT:
+
+- Root folder renamed to Future/ so loadfile("Future/Initiate.lua") and requesturl("Future/...") paths match.
+- loadstring.lua now loads the local Future/Initiate.lua first and does not self-kick when local scripts exist.
+- All requesturl() copies now prefer local files before GitHub and produce clearer errors.
+- GuiLibrary.lua keeps the embedded SignalLib instead of loading the dead roblox/main/SignalLib.lua URL.
+- Fixed GuiLibrary font restore assignment from string to Enum.Font.
+
+Use: put the Future folder in your executor workspace, then run Future/loadstring.lua or loadfile("Future/Initiate.lua")().

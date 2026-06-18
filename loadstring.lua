@@ -3,14 +3,11 @@ local betterisfile = function(file)
 	return suc and res ~= nil
 end
 
-if not shared.FutureDeveloper and betterisfile("Future/scripts/6872274481.lua") then
-    warn("[Future] Please contact engo#0320 on discord, Error: NVLN Detection!")
-    return pcall(game.Players.LocalPlayer.Kick, game.Players.LocalPlayer, "Please contact engo#0320 on discord, Error: NVLN Detection!")
+-- Local/dev copy first. This avoids dead GitHub loads and the old NVLN self-kick.
+if betterisfile("Future/Initiate.lua") and loadfile then
+	shared.FutureDeveloper = true
+	return loadfile("Future/Initiate.lua")()
 end
 
-if shared.FutureDeveloper then 
-    loadfile("Future/Initiate.lua")()
-    return
-end
-
-loadstring(game:HttpGet("https://raw.githubusercontent.com/o1nb/Future/main/Initiate.lua"))()
+local code = game:HttpGet("https://raw.githubusercontent.com/o1nb/Future/main/Initiate.lua", true)
+return loadstring(code)()
