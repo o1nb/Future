@@ -355,7 +355,26 @@ end
 
 local Flamework = require(game:GetService("ReplicatedStorage")["rbxts_include"]["node_modules"]["@flamework"].core.out).Flamework
 repeat task.wait() until Flamework.isInitialized
-local KnitClient = debug.getupvalue(require(lplr.PlayerScripts.TS.controllers.game["block-break-controller"]).BlockBreakController.onEnable, 1)
+local KnitClient
+
+repeat
+	local suc, res = pcall(function()
+		return debug.getupvalue(require(lplr.PlayerScripts.TS.knit).setup, 9)
+	end)
+
+	if suc and type(res) == "table" and res.Controllers then
+		KnitClient = res
+		break
+	end
+
+	task.wait()
+until KnitClient
+
+pcall(function()
+	if KnitClient.Start and not debug.getupvalue(KnitClient.Start, 1) then
+		repeat task.wait() until debug.getupvalue(KnitClient.Start, 1)
+	end
+end)
 local Client = require(game:GetService("ReplicatedStorage").TS.remotes).default.Client
 local InventoryUtil = require(game:GetService("ReplicatedStorage").TS.inventory["inventory-util"]).InventoryUtil
 local OldClientGet = getmetatable(Client).Get
