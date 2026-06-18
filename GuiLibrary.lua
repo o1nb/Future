@@ -131,14 +131,36 @@ local function requesturl(url, bypass)
     if betterisfile(url) then 
         return readfile(url)
     end
-    local repourl = bypass and "https://raw.githubusercontent.com/o1nb/" or "https://raw.githubusercontent.com/o1nb/Future/main/"
 
-    local req = requestfunc({
-        Url = repourl..url,
-        Method = "GET"
-    })
-    if req.StatusCode == 404 then error("404 Not Found") end
-    return req.Body
+    local repourl = bypass and "https://raw.githubusercontent.com/o1nb/" or "https://raw.githubusercontent.com/o1nb/Future/main/"
+    local fullurl = repourl..url
+
+    if not requestfunc then
+        error("No request function found for this executor")
+    end
+
+    local suc, req = pcall(function()
+        return requestfunc({
+            Url = fullurl,
+            Method = "GET"
+        })
+    end)
+
+    if not suc or not req then
+        error("Request failed: "..tostring(req))
+    end
+
+    local status = req.StatusCode or req.Status or req.status_code or req.status
+    if status == 404 then
+        error("404 Not Found: "..fullurl)
+    end
+
+    local body = req.Body or req.body
+    if not body then
+        error("Request returned no body: "..fullurl)
+    end
+
+    return body
 end 
 
 local function getasset(path)
@@ -265,7 +287,37 @@ local function dragGUI(gui, dragpart)
     end)
 end
 GuiLibrary["DragGUI"] = dragGUI
-local SignalLib = loadstring(requesturl("roblox/main/SignalLib.lua", true))()
+local SignalLib = {}
+SignalLib.__index = SignalLib
+
+function SignalLib.new()
+    local self = setmetatable({}, SignalLib)
+    self._bindable = Instance.new("BindableEvent")
+    return self
+end
+
+function SignalLib:connect(func)
+    return self._bindable.Event:Connect(func)
+end
+SignalLib.Connect = SignalLib.connect
+
+function SignalLib:Fire(...)
+    self._bindable:Fire(...)
+end
+SignalLib.fire = SignalLib.Fire
+
+function SignalLib:Wait()
+    return self._bindable.Event:Wait()
+end
+SignalLib.wait = SignalLib.Wait
+
+function SignalLib:Disconnect()
+    if self._bindable then
+        self._bindable:Destroy()
+        self._bindable = nil
+    end
+end
+SignalLib.Destroy = SignalLib.Disconnect
 local function createsignal(name) 
     local signal = SignalLib.new()
     GuiLibrary["Signals"][name] = signal
