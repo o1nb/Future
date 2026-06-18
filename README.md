@@ -3,7 +3,7 @@
 
 # Future Client Roblox
 
-This project has been superseded by engoware.
+A project that has spanded from 2021 to 2026.
 https://engoware.xyz
 
 </p>
