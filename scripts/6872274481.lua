@@ -597,7 +597,12 @@ bedwars = setmetatable({
     ["Shop"] = require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop,
     ["TeamUpgrades"] = require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.TeamUpgrades,
     ["ShopItems"] = canDebug and safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.getShopItem, 2) end, {}) or {},
-    ["ShopRight"] = require(lplr.PlayerScripts.TS.controllers.games.bedwars.shop.ui["item-shop"]["shop-right"]["shop-right"]).BedwarsItemShopRight,
+    -- This controller has moved/been removed in newer BedWars builds. It is
+    -- optional and currently unused, so do not abort the entire script when
+    -- the old `shop.ui` path is unavailable.
+    ["ShopRight"] = safeValue(function()
+        return require(lplr.PlayerScripts.TS.controllers.games.bedwars.shop.ui["item-shop"]["shop-right"]["shop-right"]).BedwarsItemShopRight
+    end, nil),
     ["SpawnRavenRemote"] = bedwars.SpawnRavenRemote,
     ["SoundManager"] = nil,
     ["SoundList"] = require(game:GetService("ReplicatedStorage").TS.sound["game-sound"]).GameSound,
@@ -800,7 +805,7 @@ local function getallblocks(pos, normal)
 		local blockpos = (pos + (Vector3.FromNormalId(normal) * (i * 3)))
 		local extrablock = getblock(blockpos)
 		local covered = isBlockCovered(blockpos)
-		if extrablock and extrablock.Parent ~= nil and (covered or covered == false and lastblock == nil) then
+		if extrablock and extrablock.Parent ~= nil and (covered or covered == false and lastfound == nil) then
 			if bedwars["BlockController"] and safeValue(function() return bedwars["BlockController"]:isBlockBreakable({["blockPosition"] = blockpos}, lplr) end, false) then
 				table.insert(blocks, extrablock.Name)
 			else
@@ -824,7 +829,7 @@ local function getlastblock(pos, normal)
 		local blockpos = (pos + (Vector3.FromNormalId(normal) * (i * 3)))
 		local extrablock = getblock(blockpos)
 		local covered = isBlockCovered(blockpos)
-		if extrablock and extrablock.Parent ~= nil and (covered or covered == false and lastblock == nil) then
+		if extrablock and extrablock.Parent ~= nil and (covered or covered == false and lastfound == nil) then
 			lastfound = extrablock
 			if covered == false then
 				break
@@ -4336,7 +4341,9 @@ local commands = {
 	end,
 }
 
-local connection1 = game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.OnMessageDoneFiltering.OnClientEvent:connect(function(tab, channel)
+local legacyChatEvents = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
+local messageFilteredEvent = legacyChatEvents and legacyChatEvents:FindFirstChild("OnMessageDoneFiltering")
+local connection1 = messageFilteredEvent and messageFilteredEvent.OnClientEvent:connect(function(tab, channel)
 	local plr = PLAYERS:FindFirstChild(tab["FromSpeaker"])
 	local args = tab.Message:split(" ")
 	local client = clients.ChatStrings1[#args > 0 and args[#args] or tab.Message]
@@ -4400,11 +4407,17 @@ local connection1 = game:GetService("ReplicatedStorage").DefaultChatSystemChatEv
 	end
 end)
 
-local connection2 = lplr.PlayerGui:WaitForChild("Chat").Frame.ChatChannelParentFrame["Frame_MessageLogDisplay"].Scroller.ChildAdded:connect(function(text)
+-- PlayerGui.Chat only exists with Roblox's legacy chat. New TextChatService
+-- experiences do not create it, so attach this cosmetic filter only when the
+-- old message scroller is actually present.
+local legacyChatGui = lplr.PlayerGui:FindFirstChild("Chat")
+local messageLog = legacyChatGui and legacyChatGui:FindFirstChild("Frame_MessageLogDisplay", true)
+local messageScroller = messageLog and messageLog:FindFirstChild("Scroller")
+local connection2 = messageScroller and messageScroller.ChildAdded:connect(function(text)
 	local textlabel2 = text:WaitForChild("TextLabel")
 	if bedwars["IsPrivateIngame"]() then
 		local args = textlabel2.Text:split(" ")
-		local client = clients.ChatStrings1[#args > 0 and args[#args] or tab.Message]
+		local client = clients.ChatStrings1[#args > 0 and args[#args] or textlabel2.Text]
 		if client then
 			if textlabel2.Text:find(clients.ChatStrings2[client]) or textlabel2.Text:find("You are now chatting") or textlabel2.Text:find("You are now privately chatting") then
 				text.Size = UDim2.new(0, 0, 0, 0)
@@ -4415,7 +4428,7 @@ local connection2 = lplr.PlayerGui:WaitForChild("Chat").Frame.ChatChannelParentF
 		end
 		textlabel2:GetPropertyChangedSignal("Text"):connect(function()
 			local args = textlabel2.Text:split(" ")
-			local client = clients.ChatStrings1[#args > 0 and args[#args] or tab.Message]
+			local client = clients.ChatStrings1[#args > 0 and args[#args] or textlabel2.Text]
 			if client then
 				if textlabel2.Text:find(clients.ChatStrings2[client]) or textlabel2.Text:find("You are now chatting") or textlabel2.Text:find("You are now privately chatting") then
 					text.Size = UDim2.new(0, 0, 0, 0)
@@ -4429,7 +4442,7 @@ local connection2 = lplr.PlayerGui:WaitForChild("Chat").Frame.ChatChannelParentF
 end)
 
 local function fun(plr) 
-    if lplr ~= plr and bedwars["CheckPlayerType"](lplr) == "DEFAULT" and bedwars["CheckPlayerType"](plr) ~= "DEFAULT" then
+    if legacyChatEvents and lplr ~= plr and bedwars["CheckPlayerType"](lplr) == "DEFAULT" and bedwars["CheckPlayerType"](plr) ~= "DEFAULT" then
         spawn(function()
             repeat task.wait() until isAlive(plr)
             repeat task.wait() until plr.Character.HumanoidRootPart.Velocity ~= Vector3.new(0, 0, 0)
@@ -4477,6 +4490,10 @@ local connection3 = PLAYERS.PlayerAdded:connect(fun)
 for i,v in pairs(PLAYERS:GetPlayers()) do 
     fun(v)
 end
-table.insert(GuiLibrary["Connections"], connection1)
-table.insert(GuiLibrary["Connections"], connection2)
+if connection1 then
+	table.insert(GuiLibrary["Connections"], connection1)
+end
+if connection2 then
+	table.insert(GuiLibrary["Connections"], connection2)
+end
 table.insert(GuiLibrary["Connections"], connection3)
