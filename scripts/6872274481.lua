@@ -201,15 +201,20 @@ local function betterfind(tab, obj)
     return nil
 end
 
-local function getconnectionproto(func, level, con) 
-    local proto = debug.getproto(func, level)
-    local info = debug.getinfo(proto)
-    
+local function getconnectionproto(func, level, con)
+    if not canDebug then return nil end
+    local proto = safeValue(function() return debug.getproto(func, level) end, nil)
+    if not proto then return nil end
+    local info = safeValue(function() return debug.getinfo(proto) end, nil)
+    if not info then return nil end
+
     local old = getthreadidentityfunc and getthreadidentityfunc() or 8
     setthreadidentityfunc(2)
-    for i,v in next, getconnections(con) do 
-        local coninfo = debug.getinfo(v.Function)
-        if v.Function and coninfo.src == info.src and coninfo.numparams == info.numparams and coninfo.currentline == info.currentline then 
+    local connections = safeValue(function() return getconnections(con) end, {})
+    for i,v in next, connections do
+        local coninfo = safeValue(function() return debug.getinfo(v.Function) end, {})
+        if v.Function and coninfo.src == info.src and coninfo.numparams == info.numparams and coninfo.currentline == info.currentline then
+            setthreadidentityfunc(old)
             return v.Function
         end
     end
@@ -327,34 +332,38 @@ local function getMoveDirection(plr)
 end
 
 local function getwool()
-	for i5, v5 in pairs(bedwars["getInventory"](lplr)["items"]) do
+	local inventory = safeValue(function() return bedwars["getInventory"](lplr) end, {items = {}})
+	for i5, v5 in pairs(inventory.items) do
 		if v5.itemType:match("wool") then
 			return v5.itemType, v5.amount
 		end
-	end	
+	end
 	return nil
 end
 
 local function getwoolamt()
-	for i5, v5 in pairs(bedwars["getInventory"](lplr)["items"]) do
+	local inventory = safeValue(function() return bedwars["getInventory"](lplr) end, {items = {}})
+	for i5, v5 in pairs(inventory.items) do
 		if v5.itemType:match("wool") then
 			return v5.amount
 		end
-	end	
+	end
 	return 0
 end
 
-local function getblockitem() 
-    for i5, v5 in pairs(bedwars.getInventory(lplr).items) do
+local function getblockitem()
+    local inventory = safeValue(function() return bedwars.getInventory(lplr) end, {items = {}})
+    for i5, v5 in pairs(inventory.items) do
         if v5.itemType:match("wool") or v5.itemType:match("grass") or v5.itemType:match("stone_brick") or v5.itemType:match("wood_plank") or v5.itemType:match("stone") or v5.itemType:match("bedrock") or v5.itemType:match("tnt") then
 			return v5.itemType, v5.amount
 		end
-	end	
+	end
 	return nil
 end
 
 local function getItem(itemName)
-	for i5, v5 in pairs(bedwars["getInventory"](lplr)["items"]) do
+	local inventory = safeValue(function() return bedwars["getInventory"](lplr) end, {items = {}})
+	for i5, v5 in pairs(inventory.items) do
 		if v5.itemType == itemName then
 			return v5, i5
 		end
@@ -363,7 +372,8 @@ local function getItem(itemName)
 end
 
 local function getItemAmt(itemName)
-	for i5, v5 in pairs(bedwars["getInventory"](lplr)["items"]) do
+	local inventory = safeValue(function() return bedwars["getInventory"](lplr) end, {items = {}})
+	for i5, v5 in pairs(inventory.items) do
 		if v5.itemType == itemName then
 			return v5.amount
 		end
@@ -379,13 +389,14 @@ end
 
 -- Huge thanks to 7granddad for this code, i dont see a point in writing this all my self when I know exactly what it does, it would just be alot of labour and work lel.
 
+local canDebug = true
 local Flamework = require(game:GetService("ReplicatedStorage")["rbxts_include"]["node_modules"]["@flamework"].core.out).Flamework
 repeat task.wait() until Flamework.isInitialized
 local KnitClient
 
 repeat
 	local suc, res = pcall(function()
-		return debug.getupvalue(require(lplr.PlayerScripts.TS.knit).setup, 9)
+		return safeValue(function() return debug.getupvalue(require(lplr.PlayerScripts.TS.knit).setup, 9) end, nil)
 	end)
 
 	if suc and type(res) == "table" and res.Controllers then
@@ -397,42 +408,42 @@ repeat
 until KnitClient
 
 pcall(function()
-	if KnitClient.Start and not debug.getupvalue(KnitClient.Start, 1) then
-		repeat task.wait() until debug.getupvalue(KnitClient.Start, 1)
+	if KnitClient.Start and canDebug and not safeValue(function() return debug.getupvalue(KnitClient.Start, 1) end, nil) then
+		repeat task.wait() until safeValue(function() return debug.getupvalue(KnitClient.Start, 1) end, nil)
 	end
 end)
 
 local remoteNames = {
-	AfkStatus = safeValue(function() return debug.getproto(KnitClient.Controllers.AfkController.KnitStart, 1) end, nil),
-	AttackEntity = safeValue(function() return KnitClient.Controllers.SwordController.sendServerRequest end, nil),
-	BeePickup = safeValue(function() return KnitClient.Controllers.BeeNetController.trigger end, nil),
-	CannonAim = safeValue(function() return debug.getproto(KnitClient.Controllers.CannonController.startAiming, 5) end, nil),
-	CannonLaunch = safeValue(function() return KnitClient.Controllers.CannonHandController.launchSelf end, nil),
-	ConsumeBattery = safeValue(function() return debug.getproto(KnitClient.Controllers.BatteryController.onKitLocalActivated, 1) end, nil),
-	ConsumeItem = safeValue(function() return debug.getproto(KnitClient.Controllers.ConsumeController.onEnable, 1) end, nil),
-	ConsumeSoul = safeValue(function() return KnitClient.Controllers.GrimReaperController.consumeSoul end, nil),
-	ConsumeTreeOrb = safeValue(function() return debug.getproto(KnitClient.Controllers.EldertreeController.createTreeOrbInteraction, 1) end, nil),
-	DepositPinata = safeValue(function() return debug.getproto(debug.getproto(KnitClient.Controllers.PiggyBankController.KnitStart, 2), 5) end, nil),
-	DragonBreath = safeValue(function() return debug.getproto(KnitClient.Controllers.VoidDragonController.onKitLocalActivated, 5) end, nil),
-	DragonEndFly = safeValue(function() return debug.getproto(KnitClient.Controllers.VoidDragonController.flapWings, 1) end, nil),
-	DragonFly = safeValue(function() return KnitClient.Controllers.VoidDragonController.flapWings end, nil),
-	DropItem = safeValue(function() return KnitClient.Controllers.ItemDropController.dropItemInHand end, nil),
-	EquipItem = safeValue(function() return debug.getproto(require(game:GetService("ReplicatedStorage").TS.entity.entities['inventory-entity']).InventoryEntity.equipItem, 4) end, nil),
-	FireProjectile = safeValue(function() return debug.getupvalue(KnitClient.Controllers.ProjectileController.launchProjectileWithValues, 2) end, nil),
-	GroundHit = safeValue(function() return KnitClient.Controllers.FallDamageController.KnitStart end, nil),
-	GuitarHeal = safeValue(function() return KnitClient.Controllers.GuitarController.performHeal end, nil),
-	HannahKill = safeValue(function() return debug.getproto(KnitClient.Controllers.HannahController.registerExecuteInteractions, 1) end, nil),
-	HarvestCrop = safeValue(function() return debug.getproto(debug.getproto(KnitClient.Controllers.CropController.KnitStart, 4), 1) end, nil),
-	KaliyahPunch = safeValue(function() return debug.getproto(KnitClient.Controllers.DragonSlayerController.onKitLocalActivated, 1) end, nil),
-	MageSelect = safeValue(function() return debug.getproto(KnitClient.Controllers.MageController.registerTomeInteraction, 1) end, nil),
-	MinerDig = safeValue(function() return debug.getproto(KnitClient.Controllers.MinerController.setupMinerPrompts, 1) end, nil),
-	PickupItem = safeValue(function() return KnitClient.Controllers.ItemDropController.checkForPickup end, nil),
-	PickupMetal = safeValue(function() return debug.getproto(KnitClient.Controllers.HiddenMetalController.onKitLocalActivated, 4) end, nil),
-	ReportPlayer = safeValue(function() return require(lplr.PlayerScripts.TS.controllers.global.report['report-controller']).default.reportPlayer end, nil),
-	ResetCharacter = safeValue(function() return debug.getproto(KnitClient.Controllers.ResetController.createBindable, 1) end, nil),
-	SpawnRaven = safeValue(function() return debug.getproto(KnitClient.Controllers.RavenController.KnitStart, 1) end, nil),
-	SummonerClawAttack = safeValue(function() return KnitClient.Controllers.SummonerClawHandController.attack end, nil),
-	WarlockTarget = safeValue(function() return debug.getproto(KnitClient.Controllers.WarlockStaffController.KnitStart, 2) end, nil)
+	AfkStatus = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.AfkController.KnitStart, 1) end, nil) or function() end,
+	AttackEntity = canDebug and safeValue(function() return KnitClient.Controllers.SwordController.sendServerRequest end, nil) or function() end,
+	BeePickup = canDebug and safeValue(function() return KnitClient.Controllers.BeeNetController.trigger end, nil) or function() end,
+	CannonAim = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.CannonController.startAiming, 5) end, nil) or function() end,
+	CannonLaunch = canDebug and safeValue(function() return KnitClient.Controllers.CannonHandController.launchSelf end, nil) or function() end,
+	ConsumeBattery = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.BatteryController.onKitLocalActivated, 1) end, nil) or function() end,
+	ConsumeItem = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.ConsumeController.onEnable, 1) end, nil) or function() end,
+	ConsumeSoul = canDebug and safeValue(function() return KnitClient.Controllers.GrimReaperController.consumeSoul end, nil) or function() end,
+	ConsumeTreeOrb = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.EldertreeController.createTreeOrbInteraction, 1) end, nil) or function() end,
+	DepositPinata = canDebug and safeValue(function() return debug.getproto(debug.getproto(KnitClient.Controllers.PiggyBankController.KnitStart, 2), 5) end, nil) or function() end,
+	DragonBreath = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.VoidDragonController.onKitLocalActivated, 5) end, nil) or function() end,
+	DragonEndFly = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.VoidDragonController.flapWings, 1) end, nil) or function() end,
+	DragonFly = canDebug and safeValue(function() return KnitClient.Controllers.VoidDragonController.flapWings end, nil) or function() end,
+	DropItem = canDebug and safeValue(function() return KnitClient.Controllers.ItemDropController.dropItemInHand end, nil) or function() end,
+	EquipItem = canDebug and safeValue(function() return debug.getproto(require(game:GetService("ReplicatedStorage").TS.entity.entities['inventory-entity']).InventoryEntity.equipItem, 4) end, nil) or function() end,
+	FireProjectile = canDebug and safeValue(function() return debug.getupvalue(KnitClient.Controllers.ProjectileController.launchProjectileWithValues, 2) end, nil) or function() end,
+	GroundHit = canDebug and safeValue(function() return KnitClient.Controllers.FallDamageController.KnitStart end, nil) or function() end,
+	GuitarHeal = canDebug and safeValue(function() return KnitClient.Controllers.GuitarController.performHeal end, nil) or function() end,
+	HannahKill = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.HannahController.registerExecuteInteractions, 1) end, nil) or function() end,
+	HarvestCrop = canDebug and safeValue(function() return debug.getproto(debug.getproto(KnitClient.Controllers.CropController.KnitStart, 4), 1) end, nil) or function() end,
+	KaliyahPunch = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.DragonSlayerController.onKitLocalActivated, 1) end, nil) or function() end,
+	MageSelect = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.MageController.registerTomeInteraction, 1) end, nil) or function() end,
+	MinerDig = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.MinerController.setupMinerPrompts, 1) end, nil) or function() end,
+	PickupItem = canDebug and safeValue(function() return KnitClient.Controllers.ItemDropController.checkForPickup end, nil) or function() end,
+	PickupMetal = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.HiddenMetalController.onKitLocalActivated, 4) end, nil) or function() end,
+	ReportPlayer = canDebug and safeValue(function() return require(lplr.PlayerScripts.TS.controllers.global.report['report-controller']).default.reportPlayer end, nil) or function() end,
+	ResetCharacter = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.ResetController.createBindable, 1) end, nil) or function() end,
+	SpawnRaven = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.RavenController.KnitStart, 1) end, nil) or function() end,
+	SummonerClawAttack = canDebug and safeValue(function() return KnitClient.Controllers.SummonerClawHandController.attack end, nil) or function() end,
+	WarlockTarget = canDebug and safeValue(function() return debug.getproto(KnitClient.Controllers.WarlockStaffController.KnitStart, 2) end, nil) or function() end
 }
 
 for i, v in remoteNames do
@@ -471,7 +482,7 @@ getmetatable(Client).Get = function(Self, remotename)
     return OldClientGet(Self, remotename)
 end
 
-bedwars = {
+bedwars = setmetatable({
     ["CheckWhitelisted"] = function(plr, ownercheck)
         local plrstr = bedwars["HashFunction"](plr.Name..plr.UserId)
         local localstr = bedwars["HashFunction"](lplr.Name..lplr.UserId)
@@ -559,11 +570,11 @@ bedwars = {
     ["GrimReaperController"] = safeValue(function() return KnitClient.Controllers.GrimReaperController end, nil),
     ["GuitarHealRemote"] = bedwars.GuitarHealRemote,
     ["HighlightController"] = safeValue(function() return KnitClient.Controllers.EntityHighlightController end, nil),
-    ["ItemTable"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1) end, {}),
+    ["ItemTable"] = canDebug and safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1) end, {}) or {},
     ["JuggernautRemote"] = bedwars.HannahKillRemote,
     ["KatanaController"] = safeValue(function() return KnitClient.Controllers.KatanaController end, nil),
     ["KatanaRemote"] = bedwars.KaliyahPunchRemote,
-    ["KnockbackTable"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.damage["knockback-util"]).KnockbackUtil.calculateKnockbackVelocity, 1) end, {}),
+    ["KnockbackTable"] = canDebug and safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.damage["knockback-util"]).KnockbackUtil.calculateKnockbackVelocity, 1) end, {}) or {},
     ["KnockbackTable2"] = require(game:GetService("ReplicatedStorage").TS.damage["knockback-util"]).KnockbackUtil,
 	["LobbyClientEvents"] = nil,
 	["MissileController"] = safeValue(function() return KnitClient.Controllers.GuidedProjectileController end, nil),
@@ -585,7 +596,7 @@ bedwars = {
     ["RuntimeLib"] = require(game:GetService("ReplicatedStorage")["rbxts_include"].RuntimeLib),
     ["Shop"] = require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop,
     ["TeamUpgrades"] = require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.TeamUpgrades,
-    ["ShopItems"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.getShopItem, 2) end, {}),
+    ["ShopItems"] = canDebug and safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.getShopItem, 2) end, {}) or {},
     ["ShopRight"] = require(lplr.PlayerScripts.TS.controllers.games.bedwars.shop.ui["item-shop"]["shop-right"]["shop-right"]).BedwarsItemShopRight,
     ["SpawnRavenRemote"] = bedwars.SpawnRavenRemote,
     ["SoundManager"] = nil,
@@ -602,16 +613,25 @@ bedwars = {
     ["WeldTable"] = require(game:GetService("ReplicatedStorage").TS.util["weld-util"]).WeldUtil,
     ["AttackRemote"] = bedwars.AttackEntityRemote,
     ["VelocityUtil"]  = require(game:GetService("ReplicatedStorage")["rbxts_include"]["node_modules"]["@easy-games"]["game-core"].out["shared"].util["velocity-util"]).VelocityUtil,
-    ["ItemMeta"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1) end, {}),
+    ["ItemMeta"] = canDebug and safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1) end, {}) or {},
     ["PlayerVacuumRemote"] = safeValue(function() return KnitClient.Controllers.PlayerVacuumController and KnitClient.Controllers.PlayerVacuumController.PlayerVacuumRemote end, ""),
     ["PingController"] = require(lplr.PlayerScripts.TS.controllers.game.ping["ping-controller"]).PingController,
     ["RaiseShieldRemote"] = safeValue(function() return KnitClient.Controllers.InfernalShieldController and KnitClient.Controllers.InfernalShieldController.RaiseShieldRemote end, ""),
-}
+}, {
+    __index = function(self, ind)
+        if KnitClient.Controllers and KnitClient.Controllers[ind] then
+            rawset(self, ind, KnitClient.Controllers[ind])
+            return rawget(self, ind)
+        end
+        return nil
+    end
+})
 local function getblock(pos)
-	return bedwars["BlockController"]:getStore():getBlockAt(bedwars["BlockController"]:getBlockPosition(pos)), bedwars["BlockController"]:getBlockPosition(pos)
+	if not bedwars["BlockController"] then return nil, Vector3.new() end
+	return safeValue(function() return bedwars["BlockController"]:getStore():getBlockAt(bedwars["BlockController"]:getBlockPosition(pos)) end, nil), safeValue(function() return bedwars["BlockController"]:getBlockPosition(pos) end, Vector3.new())
 end
 
-for i,v in pairs(safeValue(function() return debug.getupvalues(getmetatable(KnitClient.Controllers.SwordController)["attackEntity"]) end, {})) do
+for i,v in pairs(canDebug and safeValue(function() return debug.getupvalues(getmetatable(KnitClient.Controllers.SwordController)["attackEntity"]) end, {}) or {}) do
     if tostring(v) == "AC" then
         bedwars["AttackHashTable"] = v
         for i2,v2 in pairs(v) do
@@ -622,23 +642,32 @@ for i,v in pairs(safeValue(function() return debug.getupvalues(getmetatable(Knit
         end
     end
 end
-local blocktable = bedwars["BlockController2"].new(bedwars["BlockEngine"], getwool())
+local blocktable = safeValue(function() return bedwars["BlockController2"] and bedwars["BlockController2"].new(bedwars["BlockEngine"], getwool()) end, nil)
 bedwars["placeBlock"] = function(newpos, customblock)
+    if not blocktable or not bedwars["BlockController"] then return nil end
     local placeblocktype = (customblock or getwool())
     blocktable.blockType = placeblocktype
-    if bedwars["BlockController"]:isAllowedPlacement(lplr, placeblocktype, Vector3.new(newpos.X/3, newpos.Y/3, newpos.Z/3)) and getItem(placeblocktype) then
-        return blocktable:placeBlock(Vector3.new(newpos.X/3, newpos.Y/3, newpos.Z/3))
+    if safeValue(function() return bedwars["BlockController"]:isAllowedPlacement(lplr, placeblocktype, Vector3.new(newpos.X/3, newpos.Y/3, newpos.Z/3)) end, false) and getItem(placeblocktype) then
+        return safeValue(function() return blocktable:placeBlock(Vector3.new(newpos.X/3, newpos.Y/3, newpos.Z/3)) end, nil)
     end
 end
 
 local function getBow()
 	local bestsword, bestswordslot, bestswordnum = nil, nil, 0
-	for i5, v5 in pairs(bedwars["getInventory"](lplr).items) do
+	local inventory = safeValue(function() return bedwars["getInventory"](lplr) end, {items = {}})
+	for i5, v5 in pairs(inventory.items) do
 		if v5.itemType:find("bow") then
-			local tab = bedwars["ItemTable"][v5.itemType].projectileSource.ammoItemTypes
-			local tab2 = tab[#tab]
-			if bedwars["ProjectileMeta"][tab2].combat.damage > bestswordnum then
-				bestswordnum = bedwars["ProjectileMeta"][tab2].combat.damage
+			local itemTable = safeValue(function() return bedwars["ItemTable"] end, {})
+			local itemMeta = safeValue(function() return itemTable[v5.itemType] end, {})
+			local projectileSource = safeValue(function() return itemMeta.projectileSource end, {})
+			local tab = safeValue(function() return projectileSource.ammoItemTypes end, {})
+			local tab2 = tab and tab[#tab]
+			local projectileMeta = safeValue(function() return bedwars["ProjectileMeta"] end, {})
+			local tab2Meta = safeValue(function() return projectileMeta[tab2] end, {})
+			local combat = safeValue(function() return tab2Meta.combat end, {})
+			local damage = safeValue(function() return combat.damage end, 0)
+			if damage > bestswordnum then
+				bestswordnum = damage
 				bestswordslot = i5
 				bestsword = v5
 			end
@@ -648,7 +677,8 @@ local function getBow()
 end
 
 local function getItem(itemName)
-	for i5, v5 in pairs(bedwars["getInventory"](lplr)["items"]) do
+	local inventory = safeValue(function() return bedwars["getInventory"](lplr) end, {items = {}})
+	for i5, v5 in pairs(inventory.items) do
 		if v5.itemType == itemName then
 			return v5, i5
 		end
@@ -657,7 +687,12 @@ local function getItem(itemName)
 end
 
 local function getHotbarSlot(itemName)
-	for i5, v5 in pairs(bedwars["ClientStoreHandler"]:getState().Inventory.observedInventory.hotbar) do
+	if not bedwars["ClientStoreHandler"] then return nil end
+	local state = safeValue(function() return bedwars["ClientStoreHandler"]:getState() end, {})
+	local inventory = safeValue(function() return state.Inventory end, {})
+	local observedInventory = safeValue(function() return inventory.observedInventory end, {})
+	local hotbar = safeValue(function() return observedInventory.hotbar end, {})
+	for i5, v5 in pairs(hotbar) do
 		if v5["item"] and v5["item"].itemType == itemName then
 			return i5 - 1
 		end
@@ -666,30 +701,33 @@ local function getHotbarSlot(itemName)
 end
 
 local function switchItem(tool, legit)
-	if legit then
-		bedwars["ClientStoreHandler"]:dispatch({
-			type = "InventorySelectHotbarSlot", 
+	if legit and bedwars["ClientStoreHandler"] then
+		safeValue(function() bedwars["ClientStoreHandler"]:dispatch({
+			type = "InventorySelectHotbarSlot",
 			slot = getHotbarSlot(tool.Name)
-		})
+		}) end, nil)
 	end
 	pcall(function()
 		lplr.Character.HandInvItem.Value = tool
 	end)
-	bedwars["ClientHandler"]:Get(bedwars["EquipItemRemote"]):CallServerAsync({
-		hand = tool
-	})
+	if bedwars["ClientHandler"] and bedwars["EquipItemRemote"] then
+		safeValue(function() bedwars["ClientHandler"]:Get(bedwars["EquipItemRemote"]):CallServerAsync({
+			hand = tool
+		}) end, nil)
+	end
 end
 
 local function getBestTool(block)
     local tool = nil
 	local toolnum = 0
-	local blockmeta = bedwars["getItemMetadata"](block)
+	local blockmeta = safeValue(function() return bedwars["getItemMetadata"](block) end, {})
 	local blockType = ""
 	if blockmeta["block"] and blockmeta["block"]["breakType"] then
 		blockType = blockmeta["block"]["breakType"]
 	end
-	for i,v in pairs(bedwars["getInventory"](lplr)["items"]) do
-		local meta = bedwars["getItemMetadata"](v.itemType)
+	local inventory = safeValue(function() return bedwars["getInventory"](lplr) end, {items = {}})
+	for i,v in pairs(inventory.items) do
+		local meta = safeValue(function() return bedwars["getItemMetadata"](v.itemType) end, {})
 		if meta["breakBlock"] and meta["breakBlock"][blockType] then
 			tool = v
 			break
@@ -703,12 +741,14 @@ local function switchToAndUseTool(block, legit)
 	if tool and (isAlive() and lplr.Character:FindFirstChild("HandInvItem") and lplr.Character.HandInvItem.Value ~= tool["tool"]) then
 		if legit then
 			if getHotbarSlot(tool.itemType) then
-				bedwars["ClientStoreHandler"]:dispatch({
-					type = "InventorySelectHotbarSlot", 
-					slot = getHotbarSlot(tool.itemType)
-				})
+				if bedwars["ClientStoreHandler"] then
+					safeValue(function() bedwars["ClientStoreHandler"]:dispatch({
+						type = "InventorySelectHotbarSlot",
+						slot = getHotbarSlot(tool.itemType)
+					}) end, nil)
+				end
 				task.wait(0.1)
-				updateitem:Fire(inputobj)
+				if updateitem then updateitem:Fire(inputobj) end
 				return true
 			else
 				return false
@@ -761,7 +801,7 @@ local function getallblocks(pos, normal)
 		local extrablock = getblock(blockpos)
 		local covered = isBlockCovered(blockpos)
 		if extrablock and extrablock.Parent ~= nil and (covered or covered == false and lastblock == nil) then
-			if bedwars["BlockController"]:isBlockBreakable({["blockPosition"] = blockpos}, lplr) then
+			if bedwars["BlockController"] and safeValue(function() return bedwars["BlockController"]:isBlockBreakable({["blockPosition"] = blockpos}, lplr) end, false) then
 				table.insert(blocks, extrablock.Name)
 			else
 				table.insert(blocks, "unbreakable")
@@ -1377,8 +1417,8 @@ end
 do
 
     local old = {}
-    local func = safeValue(function() return debug.getupvalue(bedwars["BowTable"] and bedwars["BowTable"].launchProjectileWithValues, 2) end, nil)
-    local old2 = func and safeValue(function() return debug.getupvalue(func, 10) end, nil) or nil
+    local func = canDebug and safeValue(function() return debug.getupvalue(bedwars["BowTable"] and bedwars["BowTable"].launchProjectileWithValues, 2) end, nil) or nil
+    local old2 = canDebug and func and safeValue(function() return debug.getupvalue(func, 10) end, nil) or nil
     local FastProjectile = {}
     FastProjectile = GuiLibrary.Objects.ExploitsWindow.API.CreateOptionsButton({
         Name = "FastProjectile",
