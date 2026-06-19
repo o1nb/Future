@@ -590,7 +590,9 @@ bedwars = setmetatable({
     ["ProjectileSourceController"] = require(lplr.PlayerScripts.TS.controllers.global.combat.projectile["projectile-source-controller"]).ProjectileSourceController,
     ["RavenTable"] = safeValue(function() return KnitClient.Controllers.RavenController end, nil),
     ["RespawnController"] = safeValue(function() return KnitClient.Controllers.BedwarsRespawnController end, nil),
-    ["RespawnTimer"] = require(lplr.PlayerScripts.TS.controllers.games.bedwars.respawn.ui["respawn-timer"]).RespawnTimerWrapper,
+    ["RespawnTimer"] = safeValue(function()
+        return require(lplr.PlayerScripts.TS.controllers.games.bedwars.respawn.ui["respawn-timer"]).RespawnTimerWrapper
+    end, nil),
     ["ResetRemote"] = bedwars.ResetCharacterRemote,
     ["Roact"] = require(game:GetService("ReplicatedStorage")["rbxts_include"]["node_modules"]["@rbxts"]["roact"].src),
     ["RuntimeLib"] = require(game:GetService("ReplicatedStorage")["rbxts_include"].RuntimeLib),
@@ -613,14 +615,20 @@ bedwars = setmetatable({
     ["SwordController"] = safeValue(function() return KnitClient.Controllers.SwordController end, nil),
     ["TreeRemote"] = bedwars.ConsumeTreeOrbRemote,
     ["TrinityRemote"] = bedwars.MageSelectRemote,
-    ["VictoryScreen"] = require(lplr.PlayerScripts.TS.controllers["game"].match.ui["victory-section"]).VictorySection,
+    ["VictoryScreen"] = safeValue(function()
+        return require(lplr.PlayerScripts.TS.controllers["game"].match.ui["victory-section"]).VictorySection
+    end, nil),
     ["ViewmodelController"] = safeValue(function() return KnitClient.Controllers.ViewmodelController end, nil),
     ["WeldTable"] = require(game:GetService("ReplicatedStorage").TS.util["weld-util"]).WeldUtil,
     ["AttackRemote"] = bedwars.AttackEntityRemote,
     ["VelocityUtil"]  = require(game:GetService("ReplicatedStorage")["rbxts_include"]["node_modules"]["@easy-games"]["game-core"].out["shared"].util["velocity-util"]).VelocityUtil,
     ["ItemMeta"] = canDebug and safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1) end, {}) or {},
     ["PlayerVacuumRemote"] = safeValue(function() return KnitClient.Controllers.PlayerVacuumController and KnitClient.Controllers.PlayerVacuumController.PlayerVacuumRemote end, ""),
-    ["PingController"] = require(lplr.PlayerScripts.TS.controllers.game.ping["ping-controller"]).PingController,
+    ["PingController"] = safeValue(function()
+        return require(lplr.PlayerScripts.TS.controllers.game.ping["ping-controller"]).PingController
+    end, safeValue(function()
+        return KnitClient.Controllers.PingController
+    end, nil)),
     ["RaiseShieldRemote"] = safeValue(function() return KnitClient.Controllers.InfernalShieldController and KnitClient.Controllers.InfernalShieldController.RaiseShieldRemote end, ""),
 }, {
     __index = function(self, ind)
@@ -1598,9 +1606,13 @@ do
         end
     end
 
-    local old = debug.getproto(bedwars.PingController.onStart, 2)
+    local old = bedwars.PingController and canDebug and safeValue(function()
+        return debug.getproto(bedwars.PingController.onStart, 2)
+    end, nil)
     local oldkeys = {}
-    for i,v in next, debug.getconstants(bedwars.PingController.constructor) do 
+    for i,v in next, bedwars.PingController and canDebug and safeValue(function()
+        return debug.getconstants(bedwars.PingController.constructor)
+    end, {}) or {} do 
         if typeof(v) == "EnumItem" then
             oldkeys[#oldkeys+1] = v
         end
@@ -1646,7 +1658,9 @@ do
                 end)
             else
                 if inputconnection then inputconnection:Disconnect(); inputconnection = nil; end
-                game:GetService("ContextActionService"):BindAction("ping-location", old, false, Enum.UserInputType.MouseButton3, unpack(oldkeys))
+                if old then
+                    game:GetService("ContextActionService"):BindAction("ping-location", old, false, Enum.UserInputType.MouseButton3, unpack(oldkeys))
+                end
             end
         end,
     })
