@@ -603,9 +603,9 @@ bedwars = {
     ["AttackRemote"] = bedwars.AttackEntityRemote,
     ["VelocityUtil"]  = require(game:GetService("ReplicatedStorage")["rbxts_include"]["node_modules"]["@easy-games"]["game-core"].out["shared"].util["velocity-util"]).VelocityUtil,
     ["ItemMeta"] = debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1),
-    ["PlayerVacuumRemote"] = safeRemote(function() return debug.getconstants(debug.getproto(KnitClient.Controllers.PlayerVacuumController.onEnable, 4)) end, ""),
+    ["PlayerVacuumRemote"] = safeValue(function() return KnitClient.Controllers.PlayerVacuumController and KnitClient.Controllers.PlayerVacuumController.PlayerVacuumRemote end, ""),
     ["PingController"] = require(lplr.PlayerScripts.TS.controllers.game.ping["ping-controller"]).PingController,
-    ["RaiseShieldRemote"] = safeRemote(function() return debug.getconstants(KnitClient.Controllers.InfernalShieldController.constructor) end, ""),
+    ["RaiseShieldRemote"] = safeValue(function() return KnitClient.Controllers.InfernalShieldController and KnitClient.Controllers.InfernalShieldController.RaiseShieldRemote end, ""),
 }
 local function getblock(pos)
 	return bedwars["BlockController"]:getStore():getBlockAt(bedwars["BlockController"]:getBlockPosition(pos)), bedwars["BlockController"]:getBlockPosition(pos)
