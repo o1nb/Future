@@ -403,36 +403,36 @@ pcall(function()
 end)
 
 local remoteNames = {
-	AfkStatus = debug.getproto(KnitClient.Controllers.AfkController.KnitStart, 1),
-	AttackEntity = KnitClient.Controllers.SwordController.sendServerRequest,
-	BeePickup = KnitClient.Controllers.BeeNetController.trigger,
-	CannonAim = debug.getproto(KnitClient.Controllers.CannonController.startAiming, 5),
-	CannonLaunch = KnitClient.Controllers.CannonHandController.launchSelf,
-	ConsumeBattery = debug.getproto(KnitClient.Controllers.BatteryController.onKitLocalActivated, 1),
-	ConsumeItem = debug.getproto(KnitClient.Controllers.ConsumeController.onEnable, 1),
-	ConsumeSoul = KnitClient.Controllers.GrimReaperController.consumeSoul,
-	ConsumeTreeOrb = debug.getproto(KnitClient.Controllers.EldertreeController.createTreeOrbInteraction, 1),
-	DepositPinata = debug.getproto(debug.getproto(KnitClient.Controllers.PiggyBankController.KnitStart, 2), 5),
-	DragonBreath = debug.getproto(KnitClient.Controllers.VoidDragonController.onKitLocalActivated, 5),
-	DragonEndFly = debug.getproto(KnitClient.Controllers.VoidDragonController.flapWings, 1),
-	DragonFly = KnitClient.Controllers.VoidDragonController.flapWings,
-	DropItem = KnitClient.Controllers.ItemDropController.dropItemInHand,
-	EquipItem = debug.getproto(require(game:GetService("ReplicatedStorage").TS.entity.entities['inventory-entity']).InventoryEntity.equipItem, 4),
-	FireProjectile = debug.getupvalue(KnitClient.Controllers.ProjectileController.launchProjectileWithValues, 2),
-	GroundHit = KnitClient.Controllers.FallDamageController.KnitStart,
-	GuitarHeal = KnitClient.Controllers.GuitarController.performHeal,
-	HannahKill = debug.getproto(KnitClient.Controllers.HannahController.registerExecuteInteractions, 1),
-	HarvestCrop = debug.getproto(debug.getproto(KnitClient.Controllers.CropController.KnitStart, 4), 1),
-	KaliyahPunch = debug.getproto(KnitClient.Controllers.DragonSlayerController.onKitLocalActivated, 1),
-	MageSelect = debug.getproto(KnitClient.Controllers.MageController.registerTomeInteraction, 1),
-	MinerDig = debug.getproto(KnitClient.Controllers.MinerController.setupMinerPrompts, 1),
-	PickupItem = KnitClient.Controllers.ItemDropController.checkForPickup,
-	PickupMetal = debug.getproto(KnitClient.Controllers.HiddenMetalController.onKitLocalActivated, 4),
-	ReportPlayer = require(lplr.PlayerScripts.TS.controllers.global.report['report-controller']).default.reportPlayer,
-	ResetCharacter = debug.getproto(KnitClient.Controllers.ResetController.createBindable, 1),
-	SpawnRaven = debug.getproto(KnitClient.Controllers.RavenController.KnitStart, 1),
-	SummonerClawAttack = KnitClient.Controllers.SummonerClawHandController.attack,
-	WarlockTarget = debug.getproto(KnitClient.Controllers.WarlockStaffController.KnitStart, 2)
+	AfkStatus = safeValue(function() return debug.getproto(KnitClient.Controllers.AfkController.KnitStart, 1) end, nil),
+	AttackEntity = safeValue(function() return KnitClient.Controllers.SwordController.sendServerRequest end, nil),
+	BeePickup = safeValue(function() return KnitClient.Controllers.BeeNetController.trigger end, nil),
+	CannonAim = safeValue(function() return debug.getproto(KnitClient.Controllers.CannonController.startAiming, 5) end, nil),
+	CannonLaunch = safeValue(function() return KnitClient.Controllers.CannonHandController.launchSelf end, nil),
+	ConsumeBattery = safeValue(function() return debug.getproto(KnitClient.Controllers.BatteryController.onKitLocalActivated, 1) end, nil),
+	ConsumeItem = safeValue(function() return debug.getproto(KnitClient.Controllers.ConsumeController.onEnable, 1) end, nil),
+	ConsumeSoul = safeValue(function() return KnitClient.Controllers.GrimReaperController.consumeSoul end, nil),
+	ConsumeTreeOrb = safeValue(function() return debug.getproto(KnitClient.Controllers.EldertreeController.createTreeOrbInteraction, 1) end, nil),
+	DepositPinata = safeValue(function() return debug.getproto(debug.getproto(KnitClient.Controllers.PiggyBankController.KnitStart, 2), 5) end, nil),
+	DragonBreath = safeValue(function() return debug.getproto(KnitClient.Controllers.VoidDragonController.onKitLocalActivated, 5) end, nil),
+	DragonEndFly = safeValue(function() return debug.getproto(KnitClient.Controllers.VoidDragonController.flapWings, 1) end, nil),
+	DragonFly = safeValue(function() return KnitClient.Controllers.VoidDragonController.flapWings end, nil),
+	DropItem = safeValue(function() return KnitClient.Controllers.ItemDropController.dropItemInHand end, nil),
+	EquipItem = safeValue(function() return debug.getproto(require(game:GetService("ReplicatedStorage").TS.entity.entities['inventory-entity']).InventoryEntity.equipItem, 4) end, nil),
+	FireProjectile = safeValue(function() return debug.getupvalue(KnitClient.Controllers.ProjectileController.launchProjectileWithValues, 2) end, nil),
+	GroundHit = safeValue(function() return KnitClient.Controllers.FallDamageController.KnitStart end, nil),
+	GuitarHeal = safeValue(function() return KnitClient.Controllers.GuitarController.performHeal end, nil),
+	HannahKill = safeValue(function() return debug.getproto(KnitClient.Controllers.HannahController.registerExecuteInteractions, 1) end, nil),
+	HarvestCrop = safeValue(function() return debug.getproto(debug.getproto(KnitClient.Controllers.CropController.KnitStart, 4), 1) end, nil),
+	KaliyahPunch = safeValue(function() return debug.getproto(KnitClient.Controllers.DragonSlayerController.onKitLocalActivated, 1) end, nil),
+	MageSelect = safeValue(function() return debug.getproto(KnitClient.Controllers.MageController.registerTomeInteraction, 1) end, nil),
+	MinerDig = safeValue(function() return debug.getproto(KnitClient.Controllers.MinerController.setupMinerPrompts, 1) end, nil),
+	PickupItem = safeValue(function() return KnitClient.Controllers.ItemDropController.checkForPickup end, nil),
+	PickupMetal = safeValue(function() return debug.getproto(KnitClient.Controllers.HiddenMetalController.onKitLocalActivated, 4) end, nil),
+	ReportPlayer = safeValue(function() return require(lplr.PlayerScripts.TS.controllers.global.report['report-controller']).default.reportPlayer end, nil),
+	ResetCharacter = safeValue(function() return debug.getproto(KnitClient.Controllers.ResetController.createBindable, 1) end, nil),
+	SpawnRaven = safeValue(function() return debug.getproto(KnitClient.Controllers.RavenController.KnitStart, 1) end, nil),
+	SummonerClawAttack = safeValue(function() return KnitClient.Controllers.SummonerClawHandController.attack end, nil),
+	WarlockTarget = safeValue(function() return debug.getproto(KnitClient.Controllers.WarlockStaffController.KnitStart, 2) end, nil)
 }
 
 for i, v in remoteNames do
@@ -559,11 +559,11 @@ bedwars = {
     ["GrimReaperController"] = safeValue(function() return KnitClient.Controllers.GrimReaperController end, nil),
     ["GuitarHealRemote"] = bedwars.GuitarHealRemote,
     ["HighlightController"] = safeValue(function() return KnitClient.Controllers.EntityHighlightController end, nil),
-    ["ItemTable"] = debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1),
+    ["ItemTable"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1) end, {}),
     ["JuggernautRemote"] = bedwars.HannahKillRemote,
     ["KatanaController"] = safeValue(function() return KnitClient.Controllers.KatanaController end, nil),
     ["KatanaRemote"] = bedwars.KaliyahPunchRemote,
-    ["KnockbackTable"] = debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.damage["knockback-util"]).KnockbackUtil.calculateKnockbackVelocity, 1),
+    ["KnockbackTable"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.damage["knockback-util"]).KnockbackUtil.calculateKnockbackVelocity, 1) end, {}),
     ["KnockbackTable2"] = require(game:GetService("ReplicatedStorage").TS.damage["knockback-util"]).KnockbackUtil,
 	["LobbyClientEvents"] = nil,
 	["MissileController"] = safeValue(function() return KnitClient.Controllers.GuidedProjectileController end, nil),
@@ -585,8 +585,8 @@ bedwars = {
     ["RuntimeLib"] = require(game:GetService("ReplicatedStorage")["rbxts_include"].RuntimeLib),
     ["Shop"] = require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop,
     ["TeamUpgrades"] = require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.TeamUpgrades,
-    ["ShopItems"] = debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.getShopItem, 2),
-    ["ShopRight"] = require(lplr.PlayerScripts.TS.controllers.games.bedwars.shop.ui["item-shop"]["shop-left"]["shop-left"]).BedwarsItemShopLeft,
+    ["ShopItems"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.games.bedwars.shop["bedwars-shop"]).BedwarsShop.getShopItem, 2) end, {}),
+    ["ShopRight"] = require(lplr.PlayerScripts.TS.controllers.games.bedwars.shop.ui["item-shop"]["shop-right"]["shop-right"]).BedwarsItemShopRight,
     ["SpawnRavenRemote"] = bedwars.SpawnRavenRemote,
     ["SoundManager"] = nil,
     ["SoundList"] = require(game:GetService("ReplicatedStorage").TS.sound["game-sound"]).GameSound,
@@ -602,7 +602,7 @@ bedwars = {
     ["WeldTable"] = require(game:GetService("ReplicatedStorage").TS.util["weld-util"]).WeldUtil,
     ["AttackRemote"] = bedwars.AttackEntityRemote,
     ["VelocityUtil"]  = require(game:GetService("ReplicatedStorage")["rbxts_include"]["node_modules"]["@easy-games"]["game-core"].out["shared"].util["velocity-util"]).VelocityUtil,
-    ["ItemMeta"] = debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1),
+    ["ItemMeta"] = safeValue(function() return debug.getupvalue(require(game:GetService("ReplicatedStorage").TS.item["item-meta"]).getItemMeta, 1) end, {}),
     ["PlayerVacuumRemote"] = safeValue(function() return KnitClient.Controllers.PlayerVacuumController and KnitClient.Controllers.PlayerVacuumController.PlayerVacuumRemote end, ""),
     ["PingController"] = require(lplr.PlayerScripts.TS.controllers.game.ping["ping-controller"]).PingController,
     ["RaiseShieldRemote"] = safeValue(function() return KnitClient.Controllers.InfernalShieldController and KnitClient.Controllers.InfernalShieldController.RaiseShieldRemote end, ""),
@@ -611,7 +611,7 @@ local function getblock(pos)
 	return bedwars["BlockController"]:getStore():getBlockAt(bedwars["BlockController"]:getBlockPosition(pos)), bedwars["BlockController"]:getBlockPosition(pos)
 end
 
-for i,v in pairs(debug.getupvalues(getmetatable(KnitClient.Controllers.SwordController)["attackEntity"])) do
+for i,v in pairs(safeValue(function() return debug.getupvalues(getmetatable(KnitClient.Controllers.SwordController)["attackEntity"]) end, {})) do
     if tostring(v) == "AC" then
         bedwars["AttackHashTable"] = v
         for i2,v2 in pairs(v) do
@@ -1374,11 +1374,11 @@ do
     })
 end
 
-do 
-    
+do
+
     local old = {}
-    local func = debug.getupvalue(bedwars["BowTable"].launchProjectileWithValues, 2)
-    local old2 =  debug.getupvalue(func, 10)
+    local func = safeValue(function() return debug.getupvalue(bedwars["BowTable"] and bedwars["BowTable"].launchProjectileWithValues, 2) end, nil)
+    local old2 = func and safeValue(function() return debug.getupvalue(func, 10) end, nil) or nil
     local FastProjectile = {}
     FastProjectile = GuiLibrary.Objects.ExploitsWindow.API.CreateOptionsButton({
         Name = "FastProjectile",
