@@ -141,23 +141,12 @@ local GuiLibrary =
 
 assert(type(GuiLibrary) == "table", "Hash GUI library failed")
 
--- Pineapple-compatible presets, owned and executed directly by Hash.
+-- Hash visualizer control state.
+-- Built-in/OpenViz-style backend only: no Pineapple downloads, no OpenViz preset folder.
 local Visualizer = {}
-local presetFolder = "Pineapple/Presets"
-local presetRaw = "https://raw.githubusercontent.com/o1nb/.-/main/pineapple/"
-local presetApi = "https://api.github.com/repos/o1nb/.-./contents/pineapple?ref=main"
-local fallbackPresets = {
-    "BackBox", "Default", "DelayedSpin", "Double", "DoubleCircle",
-    "DoubleCircle2", "DoubleOrbit", "FidgetSpinner1", "FidgetSpinner2",
-    "Hecker", "LineOrbit", "Orbit", "Spin", "Spiral2", "Tornado",
-    "Tornado2", "Wave", "Wave2", "Wave3", "X", "pli4",
-}
-local presetCache = {}
-local activePreset = "Default"
+
+local activePreset = "circle"
 local visualizerRunning = false
-local visualizerToken = 0
-local visualizerObjects = {}
-local visualizerTools = {}
 local visualizerSpeed = 3
 local visualizerSize = 5
 local visualizerHeight = 0
@@ -173,388 +162,87 @@ local autoTilt = false
 local audioReactive = true
 local targetPlayer = player
 
-local function ensurePresetFolder()
-    if makefolder then
-        pcall(function()
-            if isfolder and not isfolder("Pineapple") then makefolder("Pineapple") end
-            if isfolder and not isfolder(presetFolder) then makefolder(presetFolder) end
-        end)
-    end
-end
-
-local function fetch(url)
-    local ok, body = pcall(function() return game:HttpGet(url, true) end)
-    if ok and type(body) == "string" and body ~= "" then return body end
-    local requestFunction = (syn and syn.request) or request or http_request
-    if requestFunction then
-        local requestOk, response = pcall(requestFunction, {Url = url, Method = "GET"})
-        if requestOk and response and type(response.Body) == "string" then
-            return response.Body
-        end
-    end
-end
-
-local function downloadPresets(force)
-    ensurePresetFolder()
-    local body = fetch(presetApi .. (force and ("&_=" .. os.time()) or ""))
-    if not body then return false end
-    local ok, decoded = pcall(HttpService.JSONDecode, HttpService, body)
-    if not ok or type(decoded) ~= "table" then return false end
-    for _, item in ipairs(decoded) do
-        if type(item) == "table" and tostring(item.name):match("%.preset$") then
-            local path = presetFolder .. "/" .. item.name
-            if force or not (isfile and isfile(path)) then
-                local source = fetch(item.download_url or (presetRaw .. item.name:gsub(" ", "%%20")))
-                if source and writefile then pcall(writefile, path, source) end
-            end
-        end
-    end
-    return true
-end
-
-function Visualizer.GetPresetNames()
-    ensurePresetFolder()
-    local names, seen = {}, {}
-    if listfiles and isfolder and isfolder(presetFolder) then
-        local ok, files = pcall(listfiles, presetFolder)
-        if ok then
-            for _, path in ipairs(files) do
-                local name = tostring(path):match("([^/\\]+)%.preset$")
-                if name and not seen[name] then
-                    seen[name] = true
-                    table.insert(names, name)
-                end
-            end
-        end
-    end
-    if #names == 0 then
-        downloadPresets(false)
-        if listfiles and isfolder and isfolder(presetFolder) then
-            local ok, files = pcall(listfiles, presetFolder)
-            if ok then
-                for _, path in ipairs(files) do
-                    local name = tostring(path):match("([^/\\]+)%.preset$")
-                    if name and not seen[name] then
-                        seen[name] = true
-                        table.insert(names, name)
-                    end
-                end
-            end
-        end
-    end
-    if #names == 0 then
-        for _, name in ipairs(fallbackPresets) do table.insert(names, name) end
-    end
-    table.sort(names, function(a, b) return a:lower() < b:lower() end)
-    return names
-end
-
-function Visualizer.RefreshCustomPresets()
-    presetCache = {}
-    return downloadPresets(true)
-end
-
-local function getPresetCode(name)
-    if presetCache[name] then return presetCache[name] end
-    ensurePresetFolder()
-    local path = presetFolder .. "/" .. name .. ".preset"
-    if isfile and readfile and isfile(path) then
-        local ok, source = pcall(readfile, path)
-        if ok and source ~= "" then
-            presetCache[name] = source
-            return source
-        end
-    end
-    local source = fetch(presetRaw .. (name .. ".preset"):gsub(" ", "%%20"))
-    if source then
-        presetCache[name] = source
-        if writefile then pcall(writefile, path, source) end
-    end
-    return source
-end
-
-local function removeGrip(character, handle)
-    -- Detach the equipped-tool grip only. Do NOT touch internal boombox welds.
-    if not character then return end
-
-    local tool = handle and handle:FindFirstAncestorOfClass("Tool")
-    local function isToolPart(part)
-        return tool and part and part:IsDescendantOf(tool)
-    end
-
-    local function isBodyPart(part)
-        return part and part:IsA("BasePart") and part:IsDescendantOf(character) and not isToolPart(part)
-    end
-
-    for _, joint in ipairs(character:GetDescendants()) do
-        local destroy = false
-
-        if joint.Name == "RightGrip" and (joint:IsA("Motor6D") or joint:IsA("Weld")) then
-            destroy = true
-        elseif joint:IsA("Motor6D") or joint:IsA("Weld") or joint:IsA("WeldConstraint") then
-            local ok, part0, part1 = pcall(function()
-                return joint.Part0, joint.Part1
-            end)
-            if ok then
-                if handle then
-                    destroy = (part0 == handle and isBodyPart(part1))
-                        or (part1 == handle and isBodyPart(part0))
-                else
-                    destroy = (isToolPart(part0) and isBodyPart(part1))
-                        or (isToolPart(part1) and isBodyPart(part0))
-                end
-            end
-        end
-
-        if destroy then
-            pcall(function() joint:Destroy() end)
-        end
-    end
-end
-
-local function makeLegacyTool(tool, handle, index, token)
-    local attachment = Instance.new("Attachment")
-    attachment.Name = "HashPresetAttachment"
-    attachment.Parent = handle
-
-    local position = Instance.new("AlignPosition")
-    position.Name = "HashPresetPosition"
-    position.Mode = Enum.PositionAlignmentMode.OneAttachment
-    position.Attachment0 = attachment
-    position.MaxForce = math.huge
-    position.MaxVelocity = math.huge
-    position.Responsiveness = visualizerMoverResponsiveness
-    position.Parent = handle
-
-    local rotation = Instance.new("AlignOrientation")
-    rotation.Name = "HashPresetRotation"
-    rotation.Mode = Enum.OrientationAlignmentMode.OneAttachment
-    rotation.Attachment0 = attachment
-    rotation.MaxTorque = math.huge
-    rotation.MaxAngularVelocity = math.huge
-    rotation.Responsiveness = visualizerMoverResponsiveness
-    rotation.Parent = handle
-
-    table.insert(visualizerObjects, attachment)
-    table.insert(visualizerObjects, position)
-    table.insert(visualizerObjects, rotation)
-
-    local handleProxy = setmetatable({}, {
-        __index = function(_, key)
-            if key == "Sound" then return tool:FindFirstChildWhichIsA("Sound", true) end
-            local ok, value = pcall(function() return handle[key] end)
-            if ok then return value end
-        end,
-        __newindex = function(_, key, value)
-            pcall(function() handle[key] = value end)
-        end,
-    })
-
-    local posMover = setmetatable({}, {
-        __index = function(_, key)
-            if key == "Position" then return position.Position end
-            if key == "Parent" then return handle end
-        end,
-        __newindex = function(_, key, value)
-            if token ~= visualizerToken then return end
-            if key == "Position" and typeof(value) == "Vector3" then
-                position.Position = value
-            end
-        end,
-    })
-
-    local gyroMover = setmetatable({}, {
-        __index = function(_, key)
-            if key == "CFrame" then return rotation.CFrame end
-            if key == "Parent" then return handle end
-        end,
-        __newindex = function(_, key, value)
-            if token ~= visualizerToken then return end
-            if key == "CFrame" and typeof(value) == "CFrame" then
-                local direction = reverseRotation and -1 or 1
-                local roll = autoTilt and math.rad(math.sin(time() * visualizerSpeed + index) * 18) or 0
-                -- Tilt slider = forward/back lean, applied locally after the preset rotation.
-                rotation.CFrame = value
-                    * CFrame.Angles(math.rad(visualizerTilt), 0, 0)
-                    * CFrame.Angles(0, 0, roll)
-                    * CFrame.Angles(0, 0, direction < 0 and math.pi or 0)
-            end
-        end,
-    })
-
-    return {
-        Handle = handleProxy,
-        POSV = {Value = posMover},
-        GYROV = {Value = gyroMover},
-    }
-end
-
-function Visualizer.Stop()
-    visualizerRunning = false
-    visualizerToken += 1
-    for _, object in ipairs(visualizerObjects) do
-        pcall(function() object:Destroy() end)
-    end
-    table.clear(visualizerObjects)
-    table.clear(visualizerTools)
-end
-
-function Visualizer.Start()
-    Visualizer.Stop()
-    local code = getPresetCode(activePreset)
-    if not code then
-        notify("Could not load preset " .. activePreset, "Hash visualizer")
-        return false
-    end
-
-    local character = player.Character or player.CharacterAdded:Wait()
-    local targetCharacter = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
-    local root = targetCharacter:WaitForChild("HumanoidRootPart")
-    local backpack = player:WaitForChild("Backpack")
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then tool.Parent = character end
-    end
-    RunService.Heartbeat:Wait()
-
-    visualizerRunning = true
-    visualizerToken += 1
-    local token = visualizerToken
-    for _, tool in ipairs(character:GetChildren()) do
-        local handle = tool:IsA("Tool") and tool:FindFirstChild("Handle")
-        if handle then
-            removeGrip(character, handle)
-            handle.CanCollide = false
-            handle.Massless = true
-            table.insert(visualizerTools, makeLegacyTool(
-                tool,
-                handle,
-                #visualizerTools + 1,
-                token
-            ))
-        end
-    end
-
-    local environment = {
-        tools = visualizerTools,
-        torso = root,
-        game = game,
-        workspace = workspace,
-        Vector3 = Vector3,
-        CFrame = CFrame,
-        math = math,
-        coroutine = coroutine,
-        task = task,
-        wait = wait,
-        pairs = pairs,
-        ipairs = ipairs,
-        next = next,
-        pcall = pcall,
-        print = print,
-        warn = warn,
-        tostring = tostring,
-        tonumber = tonumber,
-        type = type,
-        typeof = typeof,
-        table = table,
-        string = string,
-    }
-    setmetatable(environment, {
-        __index = function(_, key)
-            if key == "vis" then return visualizerRunning and token == visualizerToken end
-            if key == "speed" then return visualizerSpeed * (reverseRotation and -1 or 1) end
-            if key == "offset" then return visualizerSize end
-            if key == "tilt" then return visualizerHeight end
-            if key == "sens" then
-                return math.clamp(100 / math.max(visualizerSensitivity, 0.05), 25, 350)
-            end
-            return global[key]
-        end,
-    })
-
-    local chunk, err = loadstring(code, "@HashPreset/" .. activePreset)
-    if not chunk then
-        Visualizer.Stop()
-        warn(err)
-        return false
-    end
-    if setfenv then setfenv(chunk, environment) end
-    task.spawn(function()
-        local ok, runError = pcall(chunk)
-        if not ok and visualizerRunning then warn(runError) end
-    end)
-    return true
-end
-
-function Visualizer.Destroy() Visualizer.Stop() end
-function Visualizer.SetPreset(value)
-    local preset = tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
-    if preset == "spread circle" then preset = "zoom" end
-    if preset == "ball" then preset = "halo" end
-    if preset == "double spiral" then preset = "spiral" end
-    if preset == "spiral2" or preset == "spiral two" or preset == "double spiral 2" then preset = "spiral 2" end
-    if preset == "reactcircle" or preset == "rolling react" or preset == "reactive circle" or preset == "rolling circle" then preset = "react circle" end
-    if preset == "spin wings" or preset == "spinwings" or preset == "spinning wings" or preset == "twist wings" then preset = "wings" end
-    activePreset = preset
-    return true
-end
 function Visualizer.SetSpeed(value)
     visualizerSpeed = math.clamp(tonumber(value) or visualizerSpeed, 0.05, 20)
 end
+
 function Visualizer.SetSize(value)
     visualizerSize = math.clamp(tonumber(value) or visualizerSize, 0.5, 100)
 end
+
 function Visualizer.SetHeight(value)
     visualizerHeight = math.clamp(tonumber(value) or visualizerHeight, -50, 100)
 end
+
 function Visualizer.SetTilt(value)
     visualizerTilt = math.clamp(tonumber(value) or visualizerTilt, -75, 75)
 end
-function Visualizer.SetAutoTilt(value) autoTilt = value == true end
-function Visualizer.SetReverseRotation(value) reverseRotation = value == true end
-function Visualizer.SetAudioReactive(value) audioReactive = value == true end
+
+function Visualizer.SetAutoTilt(value)
+    autoTilt = value == true
+end
+
+function Visualizer.SetReverseRotation(value)
+    reverseRotation = value == true
+end
+
+function Visualizer.SetAudioReactive(value)
+    audioReactive = value == true
+end
+
 function Visualizer.SetNetlessVelocity(value)
     -- OpenViz-style: flip netless live. Do not restart/revisualize.
     useNetlessVelocity = value == true
 end
+
 function Visualizer.SetMoverResponsiveness(value)
     visualizerMoverResponsiveness = math.clamp(tonumber(value) or visualizerMoverResponsiveness, 80, 300)
-    for _, object in ipairs(visualizerObjects) do
-        if object and (object:IsA("AlignPosition") or object:IsA("AlignOrientation")) then
-            pcall(function()
-                object.Responsiveness = visualizerMoverResponsiveness
-            end)
-        end
+    if Visualizer.ApplyMoverTuning then
+        pcall(Visualizer.ApplyMoverTuning)
     end
 end
+
 function Visualizer.SetVisualizerSensitivity(value)
     local amount = tonumber(value) or 65
     visualizerSensitivity = math.clamp(amount > 2 and amount / 100 or amount, 0, 2)
 end
+
 function Visualizer.SetSmoothing(value)
     local amount = tonumber(value) or visualizerSmoothingFactor
     visualizerSmoothingFactor = math.clamp(amount > 1 and amount / 100 or amount, 0.01, 0.4)
 end
+
 function Visualizer.SetLoudnessThreshold(value)
     visualizerLoudnessThreshold = math.clamp(tonumber(value) or visualizerLoudnessThreshold, 0, 400)
 end
+
 function Visualizer.SetMaxRadiusBoost(value)
     visualizerMaxRadiusBoost = math.clamp(tonumber(value) or visualizerMaxRadiusBoost, 0, 30)
 end
+
 function Visualizer.SetTargetPlayer(value)
     local text = tostring(value or ""):lower()
+    if text == "" then
+        targetPlayer = player
+        return player
+    end
+
     for _, serverPlayer in ipairs(Players:GetPlayers()) do
-        if serverPlayer.Name:lower():sub(1, #text) == text then
+        if serverPlayer.Name:lower():sub(1, #text) == text
+            or serverPlayer.DisplayName:lower():sub(1, #text) == text then
             targetPlayer = serverPlayer
             return serverPlayer
         end
     end
+
     targetPlayer = player
     return player
 end
+
 Hash.Visualizer = Visualizer
 
--- Replace the old downloaded preset library with Hash presets on top of
--- Pineapple's original visualizer backend.
+-- OpenViz-style direct mover backend using Hash presets only.
+
 do
     local names = {
         "wings",
@@ -617,7 +305,7 @@ do
     local smoothRootCFrame = nil
     local presetRevision = 0
 
-    local PINEAPPLE_NETLESS_VECTOR = Vector3.new(0, 0, -31)
+    local OPENVIZ_NETLESS_VECTOR = Vector3.new(0, 0, -31)
 
     local function copyList(list)
         local out = {}
@@ -786,6 +474,8 @@ do
             return object.Name == "OrbitAtt"
                 or object.Name == "PineappleAlignPos"
                 or object.Name == "PineappleAlignRot"
+                or object.Name == "HashOpenVizAlignPos"
+                or object.Name == "HashOpenVizAlignRot"
                 or object.Name == "HashBuiltInAttachment"
                 or object.Name == "HashBuiltInPosition"
                 or object.Name == "HashBuiltInRotation"
@@ -811,14 +501,14 @@ do
         end
     end
 
-    local function setHandlePineappleActive(handle)
+    local function setHandleOpenVizActive(handle)
         if not handle or not handle.Parent then return end
 
         pcall(function()
             handle.Anchored = false
             handle.Massless = true
             handle.CanCollide = false
-            handle.AssemblyLinearVelocity = useNetlessVelocity and PINEAPPLE_NETLESS_VECTOR or Vector3.zero
+            handle.AssemblyLinearVelocity = useNetlessVelocity and OPENVIZ_NETLESS_VECTOR or Vector3.zero
             handle.AssemblyAngularVelocity = Vector3.zero
         end)
     end
@@ -828,7 +518,7 @@ do
         return Vector3.new(math.deg(x), math.deg(y), math.deg(z))
     end
 
-    local function makePineappleProxy(handle)
+    local function makeOpenVizProxy(handle)
         removeOldVisualizerObjects(handle)
 
         local attachment = Instance.new("Attachment")
@@ -837,7 +527,7 @@ do
         attachment.Parent = handle
 
         local alignPosition = Instance.new("AlignPosition")
-        alignPosition.Name = "PineappleAlignPos"
+        alignPosition.Name = "HashOpenVizAlignPos"
         alignPosition.Mode = Enum.PositionAlignmentMode.OneAttachment
         alignPosition.Attachment0 = attachment
         alignPosition.RigidityEnabled = true
@@ -850,7 +540,7 @@ do
         alignPosition.Parent = handle
 
         local alignRotation = Instance.new("AlignOrientation")
-        alignRotation.Name = "PineappleAlignRot"
+        alignRotation.Name = "HashOpenVizAlignRot"
         alignRotation.Mode = Enum.OrientationAlignmentMode.OneAttachment
         alignRotation.Attachment0 = attachment
         alignRotation.ReactionTorqueEnabled = false
@@ -1433,11 +1123,11 @@ do
         if trackedByTool[tool] then return true end
         if not tool or not handle or not character then return false end
 
-        setHandlePineappleActive(handle)
+        setHandleOpenVizActive(handle)
         disableToolLocalScripts(tool)
         removeCharacterGrips(character, handle)
 
-        local proxy, alignPosition, alignRotation, attachment = makePineappleProxy(handle)
+        local proxy, alignPosition, alignRotation, attachment = makeOpenVizProxy(handle)
         local sound = getToolSound(tool)
 
         local data = {
@@ -1500,7 +1190,7 @@ do
         end
     end
 
-    local function cleanupPineappleBackend(returnToBackpack)
+    local function cleanupOpenVizBackend(returnToBackpack)
         if renderConnection then
             renderConnection:Disconnect()
             renderConnection = nil
@@ -1570,13 +1260,13 @@ do
         return candidates
     end
 
-    local function primeToolsPineappleStyle(candidates)
+    local function primeToolsOpenVizStyle(candidates)
         local character = player.Character or player.CharacterAdded:Wait()
         local backpack = player:WaitForChild("Backpack")
         local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-        -- This is intentionally Pineapple's startup order. It is the part that
-        -- makes Roblox let go of the equipped tool grip before AlignPosition owns it.
+        -- OpenViz-style startup order: bounce the tool through backpack/character
+        -- so Roblox lets go of the equipped tool grip before AlignPosition owns it.
         for _, tool in ipairs(character:GetChildren()) do
             if tool:IsA("Tool") and isVisualizableTool(tool) then
                 pcall(function()
@@ -1637,7 +1327,7 @@ do
                     local handle = getToolHandle(tool)
                     if not handle then return end
 
-                    setHandlePineappleActive(handle)
+                    setHandleOpenVizActive(handle)
                     removeCharacterGrips(character, handle)
                     trackTool(tool, handle, character)
 
@@ -1703,7 +1393,7 @@ do
 
             -- OpenViz netless style: apply the velocity directly to each
             -- tracked handle after its short startup grace period. Do not use
-            -- the old Pineapple _G.tov table and do not spam .Velocity.
+            -- legacy proxy globals and do not spam .Velocity.
             for _, data in ipairs(tracked) do
                 local handle = data and data.Handle
                 if handle and handle.Parent then
@@ -1969,6 +1659,8 @@ do
         end
     end
 
+    Visualizer.ApplyMoverTuning = applyPresetMoverTuning
+
     function Visualizer.GetPresetNames()
         return copyList(names)
     end
@@ -1979,7 +1671,7 @@ do
 
     function Visualizer.Stop()
         visualizerRunning = false
-        cleanupPineappleBackend(true)
+        cleanupOpenVizBackend(true)
     end
 
     function Visualizer.Start()
@@ -2005,7 +1697,7 @@ do
         smoothRootCFrame = root.CFrame
         clearTailState()
 
-        local expectedCount = primeToolsPineappleStyle(candidates)
+        local expectedCount = primeToolsOpenVizStyle(candidates)
         local waitStarted = tick()
 
         repeat
@@ -2022,7 +1714,8 @@ do
             notify(("Attached %d/%d tools"):format(#tracked, expectedCount), "Hash visualizer")
         end
 
-        task.wait(1)
+        -- OpenViz-style start: do not sit for a full second before the movers run.
+        task.wait(0.15)
 
         if not visualizerRunning then
             return false
@@ -2034,7 +1727,7 @@ do
         startSoundTimer()
         startChildWatcher()
 
-        renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
+        renderConnection = RunService.Heartbeat:Connect(function(deltaTime)
             if not visualizerRunning then return end
 
             local rootNow = targetRoot()
@@ -3812,9 +3505,9 @@ presets:CreateDropdown({Text = "active preset", Default = selectedPreset, Option
     selectedPreset = v
     Visualizer.SetPreset(v)
 end)})
-presets:CreateButton({Text = "refresh custom presets", Script = safe(function()
+presets:CreateButton({Text = "refresh preset list", Script = safe(function()
     Visualizer.RefreshCustomPresets()
-    notify("Custom presets refreshed", "Hash")
+    notify("Hash preset list refreshed", "Hash")
 end)})
 
 local settings = settingsPage:CreateSection({Header = "settings"})
