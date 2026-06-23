@@ -1,72 +1,470 @@
 do
-    local loadingUrl =
-        "https://raw.githubusercontent.com/amrho94/load/refs/heads/main/load.luau"
-    local separator = loadingUrl:find("?", 1, true) and "&" or "?"
-    local loadingSource = game:HttpGet(
-        loadingUrl .. separator .. "_=" .. tostring(os.time()),
-        true
-    )
+	local Players = game:GetService("Players")
+	local TweenService = game:GetService("TweenService")
+	local CoreGui = game:GetService("CoreGui")
+	local StarterGui = game:GetService("StarterGui")
+	local HttpService = game:GetService("HttpService")
 
-    assert(
-        type(loadingSource) == "string" and loadingSource ~= "",
-        "Hash Hub loading screen could not be downloaded"
-    )
+	local player = Players.LocalPlayer
+	local playerName = player and (player.DisplayName or player.Name) or "unknown"
 
-    -- Keep the visible title state on-screen for at least six seconds even
-    -- when the whitelist request completes immediately.
-    local shownMarker =
-        "tween(welcome, 0.42, {TextTransparency = 0}, Enum.EasingStyle.Sine)"
-    local shownReplacement = shownMarker
-        .. "\nlocal hashMinimumTextEnd = os.clock() + 6"
+	local VERSION = "2.6.3"
+	local WHITELIST_JSON_URL =
+		"https://raw.githubusercontent.com/o1nb/whitelists/refs/heads/main/PlayerWhitelist.json"
+	local MINIMUM_TEXT_TIME = 6
 
-    local function replaceOncePlain(source, marker, replacement)
-        local first, last = source:find(marker, 1, true)
-        if not first then
-            return source, false
-        end
+	-- Fallback user-id whitelist. The hosted hashed whitelist is checked first.
+	local AUTHORIZED_USER_IDS = {
+		[3677798980] = true, -- lilgohs2
+		[11241745] = true, -- jp1029
+		[11063717451] = true,
+		[10798375128] = true,
+	}
 
-        return source:sub(1, first - 1)
-            .. replacement
-            .. source:sub(last + 1), true
-    end
+	local BACKGROUND = Color3.fromRGB(25, 25, 25)
+	local PURPLE = Color3.fromRGB(111, 84, 183)
+	local WHITE = Color3.fromRGB(246, 246, 246)
+	local TITLE_TEXT = Color3.fromRGB(205, 205, 205)
+	local SUB_TEXT = Color3.fromRGB(142, 142, 142)
+	local GOOD_TEXT = Color3.fromRGB(170, 255, 170)
+	local BAD_TEXT = Color3.fromRGB(255, 100, 100)
 
-    local shownReplaced
-    loadingSource, shownReplaced = replaceOncePlain(
-        loadingSource,
-        shownMarker,
-        shownReplacement
-    )
+	local whitelistFinished = false
+	local whitelistAllowed = false
+	local whitelistInfo = {
+		Allowed = false,
+		Level = 0,
+		Rank = "None",
+		Attackable = true,
+		Tags = {},
+		TagText = "None",
+		Abilities = {},
+		AbilityText = "None",
+		Source = "none",
+		Hash = "",
+		Error = nil,
+	}
 
-    local exitMarker = "if not whitelistAllowed then"
-    local exitReplacement = table.concat({
-        "local hashRemainingTextTime = hashMinimumTextEnd - os.clock()",
-        "if hashRemainingTextTime > 0 then",
-        "\ttask.wait(hashRemainingTextTime)",
-        "end",
-        "",
-        exitMarker,
-    }, "\n")
-    local exitReplaced
-    loadingSource, exitReplaced = replaceOncePlain(
-        loadingSource,
-        exitMarker,
-        exitReplacement
-    )
+	local global = (getgenv and getgenv()) or _G
 
-    assert(
-        shownReplaced and exitReplaced,
-        "Hash Hub loading screen format is incompatible"
-    )
+	local function sha512(data)
+		data = tostring(data or "")
 
-    local loadingChunk, loadingError = loadstring(
-        loadingSource,
-        "@HashHubLoadingScreen"
-    )
-    assert(loadingChunk, loadingError)
+		local candidates = {
+			function()
+				return crypt and crypt.hash and crypt.hash(data, "sha512")
+			end,
+			function()
+				return crypt and crypt.sha512 and crypt.sha512(data)
+			end,
+			function()
+				return syn and syn.crypt and syn.crypt.hash and syn.crypt.hash(data, "sha512")
+			end,
+			function()
+				return hash and hash.sha512 and hash.sha512(data)
+			end,
+		}
 
-    -- Do not wrap this call in pcall: whitelist denial intentionally freezes
-    -- here, and loader errors must prevent the hub from loading.
-    loadingChunk()
+		for _, callback in ipairs(candidates) do
+			local ok, result = pcall(callback)
+			if ok and type(result) == "string" and #result > 0 then
+				return result:lower()
+			end
+		end
+
+		return nil
+	end
+
+	local function stripTags(text)
+		text = tostring(text or "")
+		text = text:gsub("<br%s*/>", "\n")
+		return (text:gsub("<[^<>]->", ""))
+	end
+
+	local function rankName(level)
+		level = tonumber(level) or 0
+		if level >= 900 then
+			return "Owner (Level " .. level .. ")"
+		elseif level >= 3 then
+			return "Admin (Level " .. level .. ")"
+		elseif level >= 2 then
+			return "Private (Level " .. level .. ")"
+		elseif level >= 1 then
+			return "Whitelisted (Level " .. level .. ")"
+		end
+		return "None (Level 0)"
+	end
+
+	local function abilitiesFor(level, attackable)
+		level = tonumber(level) or 0
+		local abilities = {}
+
+		if level > 0 then
+			table.insert(abilities, "Hub access")
+			table.insert(abilities, "Whitelist tag")
+			table.insert(abilities, "Priority " .. tostring(level))
+		end
+
+		if level >= 2 then
+			table.insert(abilities, "Private rank")
+		end
+
+		if level >= 3 then
+			table.insert(abilities, "Admin rank")
+		end
+
+		if attackable == false then
+			table.insert(abilities, "Protected from targeting")
+		end
+
+		if #abilities == 0 then
+			table.insert(abilities, "None")
+		end
+
+		return abilities
+	end
+
+	local function tagText(tags)
+		if type(tags) ~= "table" or #tags == 0 then
+			return "None"
+		end
+
+		local out = {}
+		for _, tag in ipairs(tags) do
+			if type(tag) == "table" and tag.text then
+				table.insert(out, "[" .. stripTags(tag.text) .. "]")
+			end
+		end
+
+		return #out > 0 and table.concat(out, " ") or "None"
+	end
+
+	local function normalizeWhitelistData(data)
+		if type(data) ~= "table" then
+			return {WhitelistedUsers = {}, BlacklistedUsers = {}}
+		end
+
+		if type(data.WhitelistedUsers) ~= "table" then
+			data.WhitelistedUsers = {}
+		end
+
+		if type(data.BlacklistedUsers) ~= "table" then
+			data.BlacklistedUsers = {}
+		end
+
+		return data
+	end
+
+	local function finishWhitelist(result)
+		result = result or whitelistInfo
+		result.Level = tonumber(result.Level) or 0
+		result.Rank = rankName(result.Level)
+		result.Tags = type(result.Tags) == "table" and result.Tags or {}
+		result.TagText = tagText(result.Tags)
+		result.Abilities = abilitiesFor(result.Level, result.Attackable)
+		result.AbilityText = table.concat(result.Abilities, ", ")
+		result.Allowed = result.Allowed == true
+
+		whitelistInfo = result
+		whitelistAllowed = result.Allowed
+		global.HashHubWhitelist = result
+		whitelistFinished = true
+	end
+
+	task.spawn(function()
+		local result = {
+			Allowed = false,
+			Level = 0,
+			Attackable = true,
+			Tags = {},
+			Source = "none",
+		}
+
+		local ok, err = pcall(function()
+			assert(player, "LocalPlayer missing")
+
+			local blacklistedReason = nil
+			local input = tostring(player.Name) .. tostring(player.UserId) .. "SelfReport"
+			local playerHash = sha512(input)
+			result.Hash = playerHash or ""
+
+			local separator = WHITELIST_JSON_URL:find("?", 1, true) and "&" or "?"
+			local raw = game:HttpGet(
+				WHITELIST_JSON_URL .. separator .. "_=" .. tostring(os.time()),
+				true
+			)
+
+			local decoded = normalizeWhitelistData(HttpService:JSONDecode(raw))
+
+			blacklistedReason = decoded.BlacklistedUsers[tostring(player.UserId)]
+			if blacklistedReason then
+				result.Error = tostring(blacklistedReason)
+				return
+			end
+
+			if playerHash then
+				for key, entry in pairs(decoded.WhitelistedUsers) do
+					if type(entry) == "table"
+						and type(entry.hash) == "string"
+						and entry.hash:lower() == playerHash then
+
+						result.Allowed = true
+						result.Level = tonumber(entry.level) or 1
+						result.Attackable = entry.attackable
+						result.Tags = type(entry.tags) == "table" and entry.tags or {}
+						result.Source = "hashed whitelist"
+						result.DiscordId = tostring(key)
+						return
+					end
+				end
+			end
+		end)
+
+		if not ok then
+			result.Error = tostring(err)
+		end
+
+		if not result.Allowed and player and AUTHORIZED_USER_IDS[player.UserId] == true then
+			result.Allowed = true
+			result.Level = 1
+			result.Attackable = true
+			result.Tags = {
+				{
+					text = "HASH USER",
+					color = {111, 84, 183},
+				},
+			}
+			result.Source = "fallback UserId"
+		end
+
+		finishWhitelist(result)
+	end)
+
+	local function sendCoreNotification(titleText, bodyText, duration)
+		pcall(function()
+			StarterGui:SetCore("SendNotification", {
+				Title = tostring(titleText or "Hash Hub"),
+				Text = tostring(bodyText or ""),
+				Duration = tonumber(duration) or 5,
+			})
+		end)
+	end
+
+	local function denyAccess()
+		pcall(function()
+			if type(messagebox) == "function" then
+				messagebox("whitelist failed", "Error Code [2]", 0)
+			end
+		end)
+
+		sendCoreNotification("Hash Hub", whitelistInfo.Error or "Whitelist failed", 6)
+
+		pcall(function()
+			if player then
+				player:Kick(whitelistInfo.Error or "Hash Hub whitelist failed")
+			end
+		end)
+
+		error("Hash Hub whitelist failed", 0)
+	end
+
+	pcall(function()
+		local old = CoreGui:FindFirstChild("HashHubLoading")
+		if old then
+			old:Destroy()
+		end
+	end)
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "HashHubLoading"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 1000000
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	gui.Parent = CoreGui
+
+	local background = Instance.new("Frame")
+	background.Name = "Background"
+	background.Size = UDim2.fromScale(1, 1)
+	background.BackgroundColor3 = BACKGROUND
+	background.BackgroundTransparency = 1
+	background.BorderSizePixel = 0
+	background.ZIndex = 1
+	background.Parent = gui
+
+	local function makeWipePanel(name, color, zIndex)
+		local panel = Instance.new("Frame")
+		panel.Name = name
+		panel.AnchorPoint = Vector2.new(0.5, 0.5)
+		panel.Position = UDim2.fromScale(0.5, 0.5)
+		panel.Size = UDim2.fromScale(0, 1)
+		panel.BackgroundColor3 = color
+		panel.BorderSizePixel = 0
+		panel.ZIndex = zIndex
+		panel.Parent = gui
+		return panel
+	end
+
+	local purpleWipe = makeWipePanel("PurpleWipe", PURPLE, 2)
+	local whiteWipe = makeWipePanel("WhiteWipe", WHITE, 3)
+	local darkWipe = makeWipePanel("DarkWipe", BACKGROUND, 4)
+
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.AnchorPoint = Vector2.new(0.5, 0.5)
+	content.Position = UDim2.fromScale(0.5, 0.515)
+	content.Size = UDim2.fromOffset(560, 130)
+	content.BackgroundTransparency = 1
+	content.ZIndex = 5
+	content.Parent = gui
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.AnchorPoint = Vector2.new(0.5, 0.5)
+	title.Position = UDim2.new(0.5, 0, 0.5, -25)
+	title.Size = UDim2.fromOffset(560, 42)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.Gotham
+	title.TextSize = 30
+	title.RichText = true
+	title.Text = 'hash hub <font color="rgb(111,84,183)">[' .. VERSION .. ']</font>'
+	title.TextColor3 = TITLE_TEXT
+	title.TextTransparency = 1
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	title.TextYAlignment = Enum.TextYAlignment.Center
+	title.ZIndex = 5
+	title.Parent = content
+
+	local underline = Instance.new("Frame")
+	underline.Name = "Underline"
+	underline.AnchorPoint = Vector2.new(0.5, 0.5)
+	underline.Position = UDim2.new(0.5, 0, 0.5, 2)
+	underline.Size = UDim2.fromOffset(0, 1)
+	underline.BackgroundColor3 = PURPLE
+	underline.BackgroundTransparency = 0
+	underline.BorderSizePixel = 0
+	underline.ZIndex = 5
+	underline.Parent = content
+
+	local welcome = Instance.new("TextLabel")
+	welcome.Name = "Welcome"
+	welcome.AnchorPoint = Vector2.new(0.5, 0.5)
+	welcome.Position = UDim2.new(0.5, 0, 0.5, 31)
+	welcome.Size = UDim2.fromOffset(560, 28)
+	welcome.BackgroundTransparency = 1
+	welcome.Font = Enum.Font.Gotham
+	welcome.TextSize = 14
+	welcome.RichText = true
+	welcome.Text = 'checking whitelist for <font color="rgb(111,84,183)">' .. playerName .. '</font>...'
+	welcome.TextColor3 = SUB_TEXT
+	welcome.TextTransparency = 1
+	welcome.TextXAlignment = Enum.TextXAlignment.Center
+	welcome.TextYAlignment = Enum.TextYAlignment.Center
+	welcome.ZIndex = 5
+	welcome.Parent = content
+
+	local function tween(object, duration, properties, style, direction)
+		local animation = TweenService:Create(
+			object,
+			TweenInfo.new(
+				duration,
+				style or Enum.EasingStyle.Quart,
+				direction or Enum.EasingDirection.Out
+			),
+			properties
+		)
+		animation:Play()
+		return animation
+	end
+
+	tween(purpleWipe, 0.36, {Size = UDim2.fromScale(1.16, 1)})
+	task.wait(0.035)
+	tween(whiteWipe, 0.325, {Size = UDim2.fromScale(1.12, 1)})
+	task.wait(0.035)
+	local coverTween = tween(darkWipe, 0.29, {Size = UDim2.fromScale(1.08, 1)})
+	coverTween.Completed:Wait()
+
+	background.BackgroundTransparency = 0
+	purpleWipe.Visible = false
+	whiteWipe.Visible = false
+	darkWipe.Visible = false
+
+	task.wait(0.08)
+
+	tween(title, 0.46, {TextTransparency = 0}, Enum.EasingStyle.Sine)
+	task.wait(0.12)
+	tween(underline, 0.4, {Size = UDim2.fromOffset(225, 1)}, Enum.EasingStyle.Quart)
+	task.wait(0.22)
+	tween(welcome, 0.42, {TextTransparency = 0}, Enum.EasingStyle.Sine)
+
+	local minimumTextEnd = os.clock() + MINIMUM_TEXT_TIME
+
+	while not whitelistFinished do
+		task.wait()
+	end
+
+	if whitelistAllowed then
+		welcome.TextColor3 = GOOD_TEXT
+		welcome.Text = 'welcome, <font color="rgb(111,84,183)">' .. playerName .. '</font> | '
+			.. whitelistInfo.Rank .. ' | ' .. whitelistInfo.TagText
+		sendCoreNotification(
+			"Hash Hub whitelist",
+			"Rank: " .. whitelistInfo.Rank
+				.. "\nTag: " .. whitelistInfo.TagText
+				.. "\nAbilities: " .. whitelistInfo.AbilityText,
+			8
+		)
+	else
+		welcome.TextColor3 = BAD_TEXT
+		welcome.Text = 'whitelist failed for <font color="rgb(255,100,100)">' .. playerName .. '</font>'
+	end
+
+	local remainingTextTime = minimumTextEnd - os.clock()
+	if remainingTextTime > 0 then
+		task.wait(remainingTextTime)
+	end
+
+	if not whitelistAllowed then
+		denyAccess()
+	end
+
+	local titleOut = tween(
+		title,
+		0.24,
+		{TextTransparency = 1},
+		Enum.EasingStyle.Sine,
+		Enum.EasingDirection.In
+	)
+	tween(welcome, 0.2, {TextTransparency = 1}, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+	tween(underline, 0.24, {
+		Size = UDim2.fromOffset(0, 1),
+		BackgroundTransparency = 1,
+	}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+	titleOut.Completed:Wait()
+
+	purpleWipe.Visible = true
+	whiteWipe.Visible = true
+	darkWipe.Visible = true
+	purpleWipe.Size = UDim2.fromScale(1.16, 1)
+	whiteWipe.Size = UDim2.fromScale(1.12, 1)
+	darkWipe.Size = UDim2.fromScale(1.08, 1)
+
+	background.BackgroundTransparency = 1
+
+	tween(darkWipe, 0.29, {Size = UDim2.fromScale(0, 1)}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+	task.wait(0.035)
+	tween(whiteWipe, 0.325, {Size = UDim2.fromScale(0, 1)}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+	task.wait(0.035)
+	local exitWipe = tween(
+		purpleWipe,
+		0.36,
+		{Size = UDim2.fromScale(0, 1)},
+		Enum.EasingStyle.Quart,
+		Enum.EasingDirection.In
+	)
+	exitWipe.Completed:Wait()
+
+	gui:Destroy()
 end
 
 local Players = game:GetService("Players")
@@ -107,6 +505,18 @@ local function notify(text, title)
             Duration = 3,
         })
     end)
+end
+
+do
+    local whitelistInfo = global.HashHubWhitelist
+    if whitelistInfo and whitelistInfo.Allowed then
+        notify(
+            "Rank: " .. tostring(whitelistInfo.Rank)
+                .. "\nTag: " .. tostring(whitelistInfo.TagText)
+                .. "\nAbilities: " .. tostring(whitelistInfo.AbilityText),
+            "Hash whitelist"
+        )
+    end
 end
 
 local function safe(callback)
